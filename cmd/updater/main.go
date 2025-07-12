@@ -7,10 +7,12 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
+
 
 var Verbose bool
 
@@ -67,7 +69,13 @@ func parseHeaderFile(reader io.Reader) (map[string]string, error) {
 }
 
 func getHeaders() (map[string]string, error) {
-	file, err := os.Open("assets/headers/chrome-macos.json")
+	headerPath := filepath.Join("assets", "headers", "chrome-macos.json")
+	
+	if _, err := os.Stat(headerPath); os.IsNotExist(err) {
+		headerPath = filepath.Join("..", "..", "assets", "headers", "chrome-macos.json")
+	}
+	
+	file, err := os.Open(headerPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening header file: %w", err)
 	}
