@@ -10,7 +10,19 @@ import (
 	"testing"
 
 	"github.com/h2non/gock"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 )
+
+// encodeToEUCJP converts UTF-8 string to EUC-JP encoding
+func encodeToEUCJP(utf8Str string) (string, error) {
+	encoder := japanese.EUCJP.NewEncoder()
+	eucjpBytes, _, err := transform.String(encoder, utf8Str)
+	if err != nil {
+		return "", err
+	}
+	return eucjpBytes, nil
+}
 
 func Test_newCookie(t *testing.T) {
 	tests := []struct {
@@ -361,15 +373,22 @@ func Test_ExtendFreeVPSExpiration(t *testing.T) {
 		uniqueID := UniqueID("csrf1234567890")
 		formData := fmt.Sprintf("uniqid=%s&ethna_csrf=&id_vps=%s", uniqueID, vpsID)
 
+		// Create EUC-JP encoded response body
+		successHTML := `<html>
+			<body>
+				<p>利用期限の更新手続きが完了しました。</p>
+			</body>
+		</html>`
+		eucjpBody, err := encodeToEUCJP(successHTML)
+		if err != nil {
+			t.Fatalf("Failed to encode to EUC-JP: %v", err)
+		}
+
 		gock.New("https://" + XServerHost).
 			Post(DoFreeVPSExtendPath).
 			Body(strings.NewReader(formData)).
 			Reply(200).
-			BodyString(`<html>
-			<body>
-				<p>利用期限の更新手続きが完了しました。</p>
-			</body>
-		</html>`)
+			BodyString(eucjpBody)
 
 		c := &client{
 			Client: &http.Client{},
@@ -380,7 +399,7 @@ func Test_ExtendFreeVPSExpiration(t *testing.T) {
 		}
 		ctx := context.Background()
 
-		err := c.ExtendFreeVPSExpiration(ctx, vpsID, uniqueID)
+		err = c.ExtendFreeVPSExpiration(ctx, vpsID, uniqueID)
 		if err != nil {
 			t.Fatalf("ExtendFreeVPSExpiration failed: %v", err)
 		}
@@ -391,17 +410,24 @@ func Test_ExtendFreeVPSExpiration(t *testing.T) {
 		uniqueID := UniqueID("csrf1234567890")
 		formData := fmt.Sprintf("uniqid=%s&ethna_csrf=&id_vps=%s", uniqueID, vpsID)
 
-		gock.New("https://" + XServerHost).
-			Post(DoFreeVPSExtendPath).
-			Body(strings.NewReader(formData)).
-			Reply(200).
-			BodyString(`<html>
+		// Create EUC-JP encoded response body for error case
+		errorHTML := `<html>
 			<body>
 				<main>
 					<div class="contents">This is an error</div>
 				</main>
 			</body>
-		</html>`)
+		</html>`
+		eucjpErrorBody, err := encodeToEUCJP(errorHTML)
+		if err != nil {
+			t.Fatalf("Failed to encode to EUC-JP: %v", err)
+		}
+
+		gock.New("https://" + XServerHost).
+			Post(DoFreeVPSExtendPath).
+			Body(strings.NewReader(formData)).
+			Reply(200).
+			BodyString(eucjpErrorBody)
 
 		c := &client{
 			Client: &http.Client{},
@@ -412,7 +438,7 @@ func Test_ExtendFreeVPSExpiration(t *testing.T) {
 		}
 		ctx := context.Background()
 
-		err := c.ExtendFreeVPSExpiration(ctx, vpsID, uniqueID)
+		err = c.ExtendFreeVPSExpiration(ctx, vpsID, uniqueID)
 		if err == nil {
 			t.Fatal("expected error but got nil")
 		}
