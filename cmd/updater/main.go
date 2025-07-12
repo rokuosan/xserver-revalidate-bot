@@ -8,11 +8,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"x-revalidate-bot/pkg/xserver"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
-
 
 var Verbose bool
 
@@ -70,11 +70,11 @@ func parseHeaderFile(reader io.Reader) (map[string]string, error) {
 
 func getHeaders() (map[string]string, error) {
 	headerPath := filepath.Join("assets", "headers", "chrome-macos.json")
-	
+
 	if _, err := os.Stat(headerPath); os.IsNotExist(err) {
 		headerPath = filepath.Join("..", "..", "assets", "headers", "chrome-macos.json")
 	}
-	
+
 	file, err := os.Open(headerPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening header file: %w", err)
@@ -111,21 +111,26 @@ func runInternally() error {
 		return err
 	}
 
-	xs, err := NewXServerClient(x2sessid, deviceKey, headers)
+	xs, err := xserver.NewClient(xserver.ClientOptions{
+		SessionID: x2sessid,
+		DeviceKey: deviceKey,
+		Headers:   headers,
+		Logger:    slog.Default(),
+	})
 	if err != nil {
 		slog.Error("Error creating XServer client", "error", err)
 		return err
 	}
 	ctx := context.Background()
 
-	uniqueID, err := xs.GetUniqueID(ctx, vpsID)
+	uniqueID, err := xs.GetCSRFTokenAsUniqueID(ctx, xserver.VPSID(vpsID))
 	if err != nil {
 		slog.Error("Error getting unique ID", "error", err, "vps_id", vpsID)
 		return err
 	}
 	slog.Info("Unique ID retrieved", "unique_id", uniqueID)
 
-	if err := xs.DoExtendFreeVPS(ctx, vpsID, uniqueID); err != nil {
+	if err := xs.ExtendFreeVPSExpiration(ctx, xserver.VPSID(vpsID), uniqueID); err != nil {
 		slog.Error("Error extending free VPS", "error", err, "vps_id", vpsID, "unique_id", uniqueID)
 		return err
 	}
