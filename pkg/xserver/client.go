@@ -3,6 +3,7 @@ package xserver
 import (
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 )
 
 const (
@@ -162,46 +165,63 @@ func (c *client) ExtendFreeVPSExpiration(ctx context.Context, vpsID VPSID, uniqu
 
 	c.Logger.Debug("Parsing response to confirm extension")
 	body, _ := io.ReadAll(resp.Body)
-	if strings.Contains(string(body), "利用期限の更新手続きが完了しました。") {
+	translated := translate(string(body))
+	if strings.Contains(translated, "利用期限の更新手続きが完了しました。") {
 		c.Logger.Info("VPS expiration extended successfully", "vpsID", vpsID, "uniqueID", uniqueID)
 		return nil
 	}
-	errorMessage, err := findErrorMessageFromResponse(strings.NewReader(string(body)))
+	errorMessages, err := findErrorMessageFromResponse(strings.NewReader(translated))
 	if err != nil {
 		c.Logger.Error("Failed to find error message in response", "error", err, "vpsID", vpsID, "uniqueID", uniqueID)
 		return fmt.Errorf("VPS renewal failed: %s", err)
 	}
+	errorMessage := strings.Join(errorMessages, " ")
 	c.Logger.Error("VPS renewal failed", "vpsID", vpsID, "uniqueID", uniqueID, "error_message", errorMessage)
 	return fmt.Errorf("VPS renewal failed: %s", errorMessage)
 }
 
-func findErrorMessageFromResponse(body io.Reader) (string, error) {
+func translate(content string) string {
+	// EUC-JP to UTF-8
+	decoder := japanese.EUCJP.NewDecoder()
+	utf8Content, _, err := transform.String(decoder, content)
+	if err != nil {
+		utf8Content = content
+	}
+
+	decoded := html.UnescapeString(utf8Content)
+	return decoded
+}
+
+func findErrorMessageFromResponse(body io.Reader) ([]string, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse response body: %w", err)
+		return nil, fmt.Errorf("failed to parse response body: %w", err)
 	}
 
 	var errorMessage []string
-	doc.Find("main .contents").Each(func(i int, s *goquery.Selection) {
-		text := strings.TrimSpace(s.Text())
-		if text != "" {
-			errorMessage = append(errorMessage, text)
-		}
-	})
+	queries := []string{
+		"main .contents",
+		"main",
+	}
+	for _, query := range queries {
+		doc.Find(query).Each(func(i int, s *goquery.Selection) {
+			text := strings.TrimSpace(s.Text())
+			text = strings.ReplaceAll(text, "\n", " ")
+			text = strings.ReplaceAll(text, "\t", " ")
+			text = strings.ReplaceAll(text, "\r", " ")
+			text = strings.TrimSpace(text)
+			texts := strings.Split(text, " ")
+			for _, t := range texts {
+				if t != "" {
+					errorMessage = append(errorMessage, t)
+				}
+			}
+		})
 
-	if len(errorMessage) != 0 {
-		return strings.Join(errorMessage, ", "), nil
+		if len(errorMessage) != 0 {
+			return errorMessage, nil
+		}
 	}
 
-	doc.Find("main").Each(func(i int, s *goquery.Selection) {
-		text := strings.TrimSpace(s.Text())
-		if text != "" {
-			errorMessage = append(errorMessage, text)
-		}
-	})
-	if len(errorMessage) != 0 {
-		return strings.Join(errorMessage, ", "), nil
-	}
-
-	return "", fmt.Errorf("no error message found in response")
+	return nil, fmt.Errorf("no error message found in response")
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -168,7 +169,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 	tests := []struct {
 		name     string
 		htmlBody string
-		expected string
+		expected []string
 		wantErr  bool
 	}{
 		{
@@ -180,7 +181,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					</main>
 				</body>
 			</html>`,
-			expected: "エラーが発生しました。",
+			expected: []string{"エラーが発生しました。"},
 			wantErr:  false,
 		},
 		{
@@ -193,7 +194,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					</main>
 				</body>
 			</html>`,
-			expected: "エラー1: 無効な入力です。, エラー2: セッションが無効です。",
+			expected: []string{"エラー1:", "無効な入力です。", "エラー2:", "セッションが無効です。"},
 			wantErr:  false,
 		},
 		{
@@ -208,7 +209,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					</main>
 				</body>
 			</html>`,
-			expected: "エラーが発生しました。\n\t\t\t\t\t\t\t再試行してください。",
+			expected: []string{"エラーが発生しました。", "再試行してください。"},
 			wantErr:  false,
 		},
 		{
@@ -221,8 +222,8 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					</main>
 				</body>
 			</html>`,
-			expected: "",
-			wantErr:  true,
+			expected: []string{"これは.contentsではありません"},
+			wantErr:  false,
 		},
 		{
 			name: "Empty .contents elements",
@@ -234,7 +235,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					</main>
 				</body>
 			</html>`,
-			expected: "",
+			expected: nil,
 			wantErr:  true,
 		},
 		{
@@ -248,7 +249,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					</main>
 				</body>
 			</html>`,
-			expected: "有効なエラーメッセージ",
+			expected: []string{"有効なエラーメッセージ"},
 			wantErr:  false,
 		},
 		{
@@ -263,13 +264,13 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					</main>
 				</body>
 			</html>`,
-			expected: "段落1: エラーです\n\t\t\t\t\t\t\tスパン: 詳細情報",
+			expected: []string{"段落1:", "エラーです", "スパン:", "詳細情報"},
 			wantErr:  false,
 		},
 		{
 			name:     "Invalid HTML",
 			htmlBody: `<invalid><html>`,
-			expected: "",
+			expected: nil,
 			wantErr:  true,
 		},
 		{
@@ -288,7 +289,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 					<footer>フッター</footer>
 				</body>
 			</html>`,
-			expected: "メインエラー: システムエラーが発生しました, セカンダリエラー: データベース接続エラー",
+			expected: []string{"メインエラー:", "システムエラーが発生しました", "セカンダリエラー:", "データベース接続エラー"},
 			wantErr:  false,
 		},
 	}
@@ -309,8 +310,7 @@ func Test_findErrorMessageFromResponse(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-
-			if result != tt.expected {
+			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
 		})
