@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>User-Agent Checker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+
+        .container {
+            max-width: 800px;
+        }
+
+        .header {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .info {
+            margin: 20px 0;
+        }
+
+        .code {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+
+        .copy-btn {
+            margin-left: 10px;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>User-Agent Checker</h1>
+
+        <div class="header">
+            <h2>Your User-Agent:</h2>
+            <div class="code">{{.UserAgent}}</div>
+            <button class="copy-btn" onclick="copyToClipboard('{{.UserAgent}}')">Copy</button>
+        </div>
+
+        <div class="info">
+            <h3>Request Information:</h3>
+            <p><strong>Remote Address:</strong> {{.RemoteAddr}}</p>
+            <p><strong>Method:</strong> {{.Method}}</p>
+            <p><strong>Request URI:</strong> {{.RequestURI}}</p>
+            <p><strong>Timestamp:</strong> {{.Timestamp}}</p>
+        </div>
+
+        <div class="info">
+            <h3>All Headers:</h3>
+            <div class="code">{{.HeadersFormatted}}</div>
+        </div>
+
+        <div class="info">
+            <h3>API Endpoints:</h3>
+            <ul>
+                <li><a href="/api/ua">JSON API</a> - Get User-Agent as JSON</li>
+                <li><a href="/headers">Headers API</a> - Get all headers as JSON</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function () {
+                alert('User-Agent copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+
+</html>
